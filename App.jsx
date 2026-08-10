@@ -200,21 +200,48 @@ export default function MWVisualiser(){
         {/* HOME */}
         {step==="home" && (
           <div>
-            <div className="flex flex-col md:flex-row" style={{gap:30,alignItems:"center"}}>
-              <div style={{flex:"0 0 auto",width:"100%",maxWidth:460,position:"relative"}}>
-                <div style={{position:"absolute",inset:"-12px auto auto -12px",width:120,height:120,background:BLUSH,borderRadius:"50%",opacity:.5,zIndex:0}}/>
-                <img src={room} alt="Material World Roman blind" style={{position:"relative",zIndex:1,width:"100%",borderRadius:12,boxShadow:"0 18px 44px rgba(62,60,79,.20)",display:"block"}}/>
-              </div>
-              <div style={{flex:1}}>
-                <div style={{fontSize:11,letterSpacing:2.5,color:MUTE,textTransform:"uppercase",fontWeight:600}}>Made-to-measure Roman blinds</div>
-                <h1 style={{...H,fontSize:38,fontWeight:300,lineHeight:1.06,margin:"8px 0 14px",color:DARK}}>Transform your window with a Roman blind you love</h1>
-                <p style={{fontSize:15,color:DARK2,lineHeight:1.55,marginBottom:22,maxWidth:460}}>Bring a sense of style, sophistication and elegance to any space. Every Material World Roman blind is finished with a blackout fleece lining as standard. See it on your own window, or answer three quick questions and we will match you to fabrics from our collection.</p>
-                <div className="flex flex-col" style={{gap:12,maxWidth:360}}>
-                  <button onClick={()=>fileRef.current?.click()} style={{display:"inline-flex",alignItems:"center",justifyContent:"center",gap:9,background:DARK,color:WHITE,fontWeight:600,fontSize:15,border:"none",borderRadius:40,padding:"14px 22px",cursor:"pointer",...H}}><Camera size={18}/> See it on my window</button>
+            {/* heading */}
+            <div style={{textAlign:"center",maxWidth:720,margin:"6px auto 28px"}}>
+              <div style={{fontSize:11,letterSpacing:2.5,color:MUTE,textTransform:"uppercase",fontWeight:600}}>Made-to-measure Roman blinds</div>
+              <h1 style={{...H,fontSize:36,fontWeight:300,lineHeight:1.08,margin:"8px 0 12px",color:DARK}}>See your Roman blind before you order</h1>
+              <p style={{fontSize:15,color:DARK2,lineHeight:1.6,margin:"0 auto",maxWidth:640}}>Two easy ways to find the fabric that is right for your room, both made to measure and finished with our blackout fleece lining as standard. Show us your window and we will dress it in fabrics from our collection, or answer three quick questions and we will match you to your favourites. When you find one you love, we will post you free samples to see in your own light.</p>
+            </div>
+
+            {/* two tools, two panels */}
+            <div className="grid grid-cols-1 md:grid-cols-2" style={{gap:20,maxWidth:900,margin:"0 auto"}}>
+
+              {/* Panel A: AI Room Visualiser */}
+              <div style={{background:WHITE,border:`1px solid ${LINE}`,borderRadius:16,overflow:"hidden",display:"flex",flexDirection:"column",boxShadow:"0 10px 30px rgba(62,60,79,.08)"}}>
+                <div style={{position:"relative"}}>
+                  <img src={room} alt="Roman blind in a room" style={{width:"100%",height:196,objectFit:"cover",display:"block"}}/>
+                  <span style={{position:"absolute",top:12,left:12,background:DARK,color:WHITE,fontSize:10.5,fontWeight:600,letterSpacing:.5,padding:"4px 10px",borderRadius:20,textTransform:"uppercase"}}>AI Room Visualiser</span>
+                </div>
+                <div style={{padding:"22px",display:"flex",flexDirection:"column",flex:1}}>
+                  <h3 style={{...H,fontSize:21,fontWeight:500,color:DARK,margin:"0 0 6px"}}>See it on your window</h3>
+                  <p style={{fontSize:13.5,color:DARK2,lineHeight:1.55,margin:0}}>Upload a photo of your window. We read the room's colours and light, then show you four fabrics made up on your own window.</p>
+                  <div style={{flex:1}}/>
+                  <button onClick={()=>fileRef.current?.click()} style={{marginTop:20,width:"100%",display:"inline-flex",alignItems:"center",justifyContent:"center",gap:9,background:DARK,color:WHITE,fontWeight:600,fontSize:15,border:"none",borderRadius:40,padding:"13px 22px",cursor:"pointer",...H}}><Camera size={18}/> Upload my window</button>
                   <input ref={fileRef} type="file" accept="image/*" onChange={onFile} style={{display:"none"}}/>
-                  <div style={{fontSize:12,color:MUTE,textAlign:"center",marginTop:-4}}>Upload a photo of your window and we will read the room and dress it for you.</div>
-                  <button onClick={()=>{setMode("quiz");setQIdx(0);setAnswers({});setStep("quiz");}} style={{display:"inline-flex",alignItems:"center",justifyContent:"center",gap:9,background:WHITE,color:DARK,fontWeight:600,fontSize:15,border:`1.5px solid ${DARK}`,borderRadius:40,padding:"14px 22px",cursor:"pointer",...H}}><Wand2 size={18}/> Find my fabric in 60 seconds</button>
-                  <button onClick={()=>startPhoto(ROOM)} style={{background:"transparent",border:"none",color:MUTE,fontSize:12.5,cursor:"pointer",textDecoration:"underline",...H}}>or preview with a sample room</button>
+                  <button onClick={()=>startPhoto(ROOM)} style={{marginTop:10,background:"transparent",border:"none",color:MUTE,fontSize:12.5,cursor:"pointer",...H}}>or preview with a sample room</button>
+                </div>
+              </div>
+
+              {/* Panel B: Style Quiz */}
+              <div style={{background:WHITE,border:`1px solid ${LINE}`,borderRadius:16,overflow:"hidden",display:"flex",flexDirection:"column",boxShadow:"0 10px 30px rgba(62,60,79,.08)"}}>
+                <div style={{position:"relative",height:196,background:CARD}}>
+                  <div className="grid grid-cols-2" style={{height:"100%"}}>
+                    {[byId("marela-apple-green"),byId("warwick-gold-damask"),byId("agapanthus-blue-large"),byId("marela-burnt-orange")].map((f,i)=>(
+                      <div key={i} style={{background:fabricBg(f),overflow:"hidden"}}><img src={f.img} alt={f.name} onError={e=>{e.currentTarget.style.display="none";}} style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}}/></div>
+                    ))}
+                  </div>
+                  <span style={{position:"absolute",top:12,left:12,background:BLUSH,color:DARK,fontSize:10.5,fontWeight:600,letterSpacing:.5,padding:"4px 10px",borderRadius:20,textTransform:"uppercase"}}>60-second style quiz</span>
+                </div>
+                <div style={{padding:"22px",display:"flex",flexDirection:"column",flex:1}}>
+                  <h3 style={{...H,fontSize:21,fontWeight:500,color:DARK,margin:"0 0 6px"}}>Find my fabric</h3>
+                  <p style={{fontSize:13.5,color:DARK2,lineHeight:1.55,margin:0}}>Answer three quick questions about your room, what you need the blind to do, and the look you love. We will match you to fabrics from our collection.</p>
+                  <div style={{flex:1}}/>
+                  <button onClick={()=>{setMode("quiz");setQIdx(0);setAnswers({});setStep("quiz");}} style={{marginTop:20,width:"100%",display:"inline-flex",alignItems:"center",justifyContent:"center",gap:9,background:DARK,color:WHITE,fontWeight:600,fontSize:15,border:"none",borderRadius:40,padding:"13px 22px",cursor:"pointer",...H}}><Wand2 size={18}/> Start the quiz</button>
+                  <div style={{height:23}}/>
                 </div>
               </div>
             </div>

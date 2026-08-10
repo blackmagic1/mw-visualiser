@@ -159,6 +159,7 @@ app.post('/api/render', async (req, res) => {
       `The ${item} should sit naturally within the window recess and be the only window covering in the final image. ` +
       `The SECOND image is a fabric sample, provided ONLY as a reference for the material's colour, weave and pattern. Do NOT copy the room, window, scene, props or lighting from the second image; take nothing from it except the fabric itself` +
       (fabricName ? ` (${fabricName})` : '') + `. ` +
+      `The fabric must appear ONLY as the ${item} fitted inside the window recess. Do not drape, hang, tent or place the fabric anywhere else in the room, and do not add any extra fabric, canopy or covering across the walls, ceiling, bed or floor. ` +
       `The ${item} has full blackout lining, so the fabric is completely opaque: no sunlight, glow or window view shows through the fabric itself, and it reads as solid colour with soft natural folds. ` +
       `Keep anything in front of the window, such as plants, the sill or furniture, in front of the ${item}. ` +
       `Photorealistic, with natural folds and soft shadows. Return only the edited photograph of the customer's room.`;

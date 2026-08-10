@@ -1,7 +1,7 @@
 import { useState, useRef } from "react";
 import { Sofa, Bed, CookingPot, Bath, Utensils, Moon, Sun, Lock, Sparkles,
          Camera, Wand2, Check, Package, RotateCcw, ChevronLeft, Loader2, Upload,
-         Search, ShoppingCart, Truck, Scissors, Hand, Maximize2, X } from "lucide-react";
+         Search, ShoppingCart, Truck, Scissors, Hand, Maximize2, X, RefreshCw } from "lucide-react";
 
 const DARK="#3E3C4F", DARK2="#565469", WHITE="#FFFFFF", CARD="#F7F4F8", LINE="#E7E4EC";
 const BLUSH="#E7CCCB", BLUE="#B5D7E6", MUTE="#8E8AA3", SUCCESS="#7FB4C8";
@@ -117,10 +117,12 @@ export default function MWVisualiser(){
   const fileRef=useRef(null);
   const [roomAspect,setRoomAspect]=useState("1000 / 666");
   const [zoom,setZoom]=useState(null);
+  const [renderRoom,setRenderRoom]=useState(ROOM);
 
   function onFile(e){ const file=e.target.files?.[0]; if(!file) return; const r=new FileReader(); r.onload=()=>{ const url=String(r.result); setRoom(url); const im=new Image(); im.onload=()=>setRoomAspect(`${im.naturalWidth} / ${im.naturalHeight}`); im.src=url; startPhoto(url); }; r.readAsDataURL(file); e.target.value=""; }
 
   function fireRenders(roomImg, ps){
+    setRenderRoom(roomImg);
     const init = ps.map(p => ({ ...p, status:"loading", image:null }));
     setCards(init);
     init.forEach(card => {
@@ -129,6 +131,14 @@ export default function MWVisualiser(){
         .then(d=> setCards(cs=>cs.map(c=>c.id===card.id?{...c,status:"done",image:d.image}:c)))
         .catch(()=> setCards(cs=>cs.map(c=>c.id===card.id?{...c,status:"error"}:c)));
     });
+  }
+
+  function reRender(card){
+    setCards(cs=>cs.map(c=>c.id===card.id?{...c,status:"loading",image:null}:c));
+    fetch("/api/render",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({ room:renderRoom, fabricUrl:card.url, fabricName:card.name, product:"blind" })})
+      .then(async r=>{ const d=await r.json(); if(!r.ok) throw new Error(d.error||"render failed"); return d; })
+      .then(d=> setCards(cs=>cs.map(c=>c.id===card.id?{...c,status:"done",image:d.image}:c)))
+      .catch(()=> setCards(cs=>cs.map(c=>c.id===card.id?{...c,status:"error"}:c)));
   }
 
   async function startPhoto(roomImg){
@@ -312,7 +322,10 @@ export default function MWVisualiser(){
                       <img src={card.image || f.url} alt={f.name} onError={e=>{e.currentTarget.style.display="none";}} style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}}/>
                       {card.status==="loading" && <div style={{position:"absolute",inset:0,background:"rgba(62,60,79,.45)",display:"flex",alignItems:"center",justifyContent:"center",color:WHITE}}><Loader2 size={22} className="animate-spin"/></div>}
                       {card.status==="error" && <div style={{position:"absolute",bottom:6,left:6,fontSize:10,color:WHITE,background:"rgba(62,60,79,.7)",padding:"2px 6px",borderRadius:8}}>fabric shown flat</div>}
-                      {rendered && <div style={{position:"absolute",top:8,right:8,background:"rgba(35,32,27,.6)",color:WHITE,borderRadius:8,padding:"5px",display:"flex"}}><Maximize2 size={15}/></div>}
+                      {(card.status==="done"||card.status==="error") && <div style={{position:"absolute",top:8,right:8,display:"flex",gap:6}}>
+                        <button onClick={(e)=>{e.stopPropagation();reRender(card);}} title="Try again" style={{background:"rgba(35,32,27,.6)",color:WHITE,border:"none",borderRadius:8,padding:"5px",display:"flex",cursor:"pointer"}}><RefreshCw size={15}/></button>
+                        {rendered && <div style={{background:"rgba(35,32,27,.6)",color:WHITE,borderRadius:8,padding:"5px",display:"flex"}}><Maximize2 size={15}/></div>}
+                      </div>}
                       {sel && <div style={{position:"absolute",top:8,left:8,width:26,height:26,borderRadius:"50%",background:BLUE,color:DARK,display:"flex",alignItems:"center",justifyContent:"center"}}><Check size={16}/></div>}
                     </div>
                     <div onClick={()=>toggle(card.id)} style={{padding:"11px 13px",cursor:"pointer",flex:1,display:"flex",flexDirection:"column"}}>
@@ -377,7 +390,10 @@ export default function MWVisualiser(){
             </div>
             <div className="flex items-center justify-between" style={{padding:"14px 18px",gap:12}}>
               <div><div style={{...H,fontSize:16,fontWeight:600,color:DARK}}>{zoom.name} · €{zoom.price}/m</div><div style={{fontSize:12.5,color:MUTE,marginTop:2}}>{zoom.reason}</div></div>
-              <button onClick={()=>toggle(zoom.id)} style={{whiteSpace:"nowrap",background:selected.includes(zoom.id)?DARK:WHITE,color:selected.includes(zoom.id)?WHITE:DARK,fontWeight:600,fontSize:13,border:`1.5px solid ${DARK}`,borderRadius:40,padding:"10px 18px",cursor:"pointer",...H}}>{selected.includes(zoom.id)?"Selected":"Select"}</button>
+              <div style={{display:"flex",gap:8,flexShrink:0}}>
+                <button onClick={()=>{reRender(zoom);setZoom(null);}} style={{whiteSpace:"nowrap",display:"inline-flex",alignItems:"center",gap:6,background:WHITE,color:DARK,fontWeight:600,fontSize:13,border:`1.5px solid ${LINE}`,borderRadius:40,padding:"10px 16px",cursor:"pointer",...H}}><RefreshCw size={14}/> Try again</button>
+                <button onClick={()=>toggle(zoom.id)} style={{whiteSpace:"nowrap",background:selected.includes(zoom.id)?DARK:WHITE,color:selected.includes(zoom.id)?WHITE:DARK,fontWeight:600,fontSize:13,border:`1.5px solid ${DARK}`,borderRadius:40,padding:"10px 18px",cursor:"pointer",...H}}>{selected.includes(zoom.id)?"Selected":"Select"}</button>
+              </div>
             </div>
           </div>
         </div>

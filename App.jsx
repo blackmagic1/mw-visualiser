@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Sofa, Bed, CookingPot, Bath, Utensils, Moon, Sun, Lock, Sparkles,
          Camera, Wand2, Check, Package, RotateCcw, ChevronLeft, Loader2, Upload,
          Search, ShoppingCart, Truck, Scissors, Hand } from "lucide-react";
@@ -82,10 +82,11 @@ function pickFabrics(a){
   const out = []; const tone = {};
   for (const { f } of scored) { if ((tone[f.tone]||0) >= 2) continue; out.push(f); tone[f.tone]=(tone[f.tone]||0)+1; if (out.length===4) break; }
   for (const { f } of scored) { if (out.length>=4) break; if (!out.includes(f)) out.push(f); }
-  return out.slice(0,4).map(f => ({ id:f.id, reason: reasonFor(f,a) }));
+  return out.slice(0,4).map(f => ({ id:f.id, name:f.name, url:f.img, price:f.price, base:f.base, alt:f.alt, motif:f.motif, reason: reasonFor(f,a) }));
 }
 
 function fabricBg(f){
+  if(!f || !f.base) return "linear-gradient(135deg,#EFEDE9,#DED9CE)";
   const b=f.base;
   if(f.motif==="herring") return `repeating-linear-gradient(45deg,${b} 0 5px,${f.alt} 5px 10px)`;
   if(f.motif==="stripe")  return `repeating-linear-gradient(90deg,${b} 0 12px,${f.alt} 12px 20px)`;
@@ -113,30 +114,36 @@ export default function MWVisualiser(){
   const [picks,setPicks]=useState([]);
   const [cards,setCards]=useState([]);
   const [selected,setSelected]=useState([]);
+  const fileRef=useRef(null);
 
-  function onFile(e){ const file=e.target.files?.[0]; if(!file) return; const r=new FileReader(); r.onload=()=>setRoom(String(r.result)); r.readAsDataURL(file); e.target.value=""; }
+  function onFile(e){ const file=e.target.files?.[0]; if(!file) return; const r=new FileReader(); r.onload=()=>{ const url=String(r.result); setRoom(url); startPhoto(url); }; r.readAsDataURL(file); e.target.value=""; }
 
   function fireRenders(roomImg, ps){
-    const init = ps.map(p => ({ id:p.id, reason:p.reason, status:"loading", image:null }));
+    const init = ps.map(p => ({ ...p, status:"loading", image:null }));
     setCards(init);
-    init.forEach(card => { const f=byId(card.id); if(!f) return;
-      fetch("/api/render",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({ room:roomImg, fabricUrl:f.img, fabricName:f.name, product:"blind" })})
+    init.forEach(card => {
+      fetch("/api/render",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({ room:roomImg, fabricUrl:card.url, fabricName:card.name, product:"blind" })})
         .then(async r=>{ const d=await r.json(); if(!r.ok) throw new Error(d.error||"render failed"); return d; })
         .then(d=> setCards(cs=>cs.map(c=>c.id===card.id?{...c,status:"done",image:d.image}:c)))
         .catch(()=> setCards(cs=>cs.map(c=>c.id===card.id?{...c,status:"error"}:c)));
     });
   }
 
-  async function startPhoto(){
+  async function startPhoto(roomImg){
+    const img = roomImg || room;
     setMode("photo"); setStep("analysing"); setSelected([]);
     let ps, ana;
     try{
-      const res=await fetch("/api/analyse",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({ room, fabrics:FABRICS.map(f=>({id:f.id,name:f.name})) })});
+      const res=await fetch("/api/analyse",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({ room: img })});
       const data=await res.json(); if(!res.ok) throw new Error(data.error||"x");
-      ana={style:data.style||FALLBACK.style,palette:data.palette||[],sub:""}; ps=(data.picks||[]).slice(0,4);
+      ana={style:data.style||FALLBACK.style,palette:data.palette||[],sub:[data.wall,data.light].filter(Boolean).join(" · ")};
+      ps=(data.picks||[]).slice(0,4);
       if(!ps.length) throw new Error("x");
-    }catch(e){ ana={style:FALLBACK.style,palette:FALLBACK.palette,sub:""}; ps=FALLBACK.picks; }
-    setAnalysis(ana); setPicks(ps); setStep("results"); fireRenders(room, ps);
+    }catch(e){
+      ana={style:FALLBACK.style,palette:FALLBACK.palette,sub:""};
+      ps=FALLBACK.picks.map(p=>{const f=byId(p.id);return {id:f.id,name:f.name,url:f.img,price:f.price,base:f.base,alt:f.alt,motif:f.motif,reason:p.reason};});
+    }
+    setAnalysis(ana); setPicks(ps); setStep("results"); fireRenders(img, ps);
   }
 
   function answer(key, v){
@@ -146,7 +153,7 @@ export default function MWVisualiser(){
     const ps = pickFabrics(a);
     setMode("quiz"); setPicks(ps); setSelected([]);
     setAnalysis({ style:"Your matches", sub:`Chosen for a ${LOOK_WORD[a.look]} look in your ${ROOM_WORD[a.room]}.`, palette:[] });
-    setCards(ps.map(p => ({ id:p.id, reason:p.reason, status:"flat", image:null })));
+    setCards(ps.map(p => ({ ...p, status:"flat", image:null })));
     setStep("results");
   }
 
@@ -202,10 +209,12 @@ export default function MWVisualiser(){
                 <div style={{fontSize:11,letterSpacing:2.5,color:MUTE,textTransform:"uppercase",fontWeight:600}}>Made-to-measure Roman blinds</div>
                 <h1 style={{...H,fontSize:38,fontWeight:300,lineHeight:1.06,margin:"8px 0 14px",color:DARK}}>Transform your window with a Roman blind you love</h1>
                 <p style={{fontSize:15,color:DARK2,lineHeight:1.55,marginBottom:22,maxWidth:460}}>Bring a sense of style, sophistication and elegance to any space. Every Material World Roman blind is finished with a blackout fleece lining as standard. See it on your own window, or answer three quick questions and we will match you to fabrics from our collection.</p>
-                <div className="flex flex-col" style={{gap:12,maxWidth:340}}>
-                  <button onClick={startPhoto} style={{display:"inline-flex",alignItems:"center",justifyContent:"center",gap:9,background:DARK,color:WHITE,fontWeight:600,fontSize:15,border:"none",borderRadius:40,padding:"14px 22px",cursor:"pointer",...H}}><Camera size={18}/> See it on my window</button>
+                <div className="flex flex-col" style={{gap:12,maxWidth:360}}>
+                  <button onClick={()=>fileRef.current?.click()} style={{display:"inline-flex",alignItems:"center",justifyContent:"center",gap:9,background:DARK,color:WHITE,fontWeight:600,fontSize:15,border:"none",borderRadius:40,padding:"14px 22px",cursor:"pointer",...H}}><Camera size={18}/> See it on my window</button>
+                  <input ref={fileRef} type="file" accept="image/*" onChange={onFile} style={{display:"none"}}/>
+                  <div style={{fontSize:12,color:MUTE,textAlign:"center",marginTop:-4}}>Upload a photo of your window and we will read the room and dress it for you.</div>
                   <button onClick={()=>{setMode("quiz");setQIdx(0);setAnswers({});setStep("quiz");}} style={{display:"inline-flex",alignItems:"center",justifyContent:"center",gap:9,background:WHITE,color:DARK,fontWeight:600,fontSize:15,border:`1.5px solid ${DARK}`,borderRadius:40,padding:"14px 22px",cursor:"pointer",...H}}><Wand2 size={18}/> Find my fabric in 60 seconds</button>
-                  <label style={{display:"inline-flex",alignItems:"center",gap:7,fontSize:13,color:MUTE,cursor:"pointer",marginTop:2}}><Upload size={14}/> Use a photo of your own room<input type="file" accept="image/*" onChange={onFile} style={{display:"none"}}/></label>
+                  <button onClick={()=>startPhoto(ROOM)} style={{background:"transparent",border:"none",color:MUTE,fontSize:12.5,cursor:"pointer",textDecoration:"underline",...H}}>or preview with a sample room</button>
                 </div>
               </div>
             </div>
@@ -266,11 +275,11 @@ export default function MWVisualiser(){
             </div>
 
             <div className="grid grid-cols-2" style={{gap:16}}>
-              {cards.map(card=>{ const f=byId(card.id); if(!f) return null; const sel=selected.includes(card.id);
+              {cards.map(card=>{ const f=card; const sel=selected.includes(card.id);
                 return (
                   <button key={card.id} onClick={()=>toggle(card.id)} style={{textAlign:"left",background:CARD,border:`2px solid ${sel?DARK:LINE}`,borderRadius:14,overflow:"hidden",cursor:"pointer",padding:0}}>
                     <div style={{position:"relative",aspectRatio:"1",background:fabricBg(f)}}>
-                      <img src={card.image || f.img} alt={f.name} onError={e=>{e.currentTarget.style.display="none";}} style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}}/>
+                      <img src={card.image || f.url} alt={f.name} onError={e=>{e.currentTarget.style.display="none";}} style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}}/>
                       {card.status==="loading" && <div style={{position:"absolute",inset:0,background:"rgba(62,60,79,.45)",display:"flex",alignItems:"center",justifyContent:"center",color:WHITE}}><Loader2 size={22} className="animate-spin"/></div>}
                       {card.status==="error" && <div style={{position:"absolute",bottom:6,left:6,fontSize:10,color:WHITE,background:"rgba(62,60,79,.7)",padding:"2px 6px",borderRadius:8}}>fabric shown flat</div>}
                       {sel && <div style={{position:"absolute",top:8,right:8,width:26,height:26,borderRadius:"50%",background:BLUE,color:DARK,display:"flex",alignItems:"center",justifyContent:"center"}}><Check size={16}/></div>}
@@ -304,8 +313,8 @@ export default function MWVisualiser(){
             <h2 style={{...H,fontSize:27,fontWeight:400,marginBottom:6,color:DARK}}>Order your free samples</h2>
             <p style={{fontSize:14,color:DARK2,marginBottom:18}}>We will post your samples so you can see the colours in your own light and feel the textures in your hands before you order.</p>
             <div style={{background:CARD,border:`1px solid ${LINE}`,borderRadius:12,padding:12,marginBottom:18}}>
-              {selected.map(id=>{ const f=byId(id); return (
-                <div key={id} className="flex items-center" style={{gap:10,padding:"6px 0"}}><img src={f.img} alt="" onError={e=>{e.currentTarget.style.visibility="hidden";}} style={{width:34,height:34,borderRadius:7,objectFit:"cover",background:fabricBg(f)}}/><span style={{fontSize:13,fontWeight:500,flex:1,color:DARK}}>{f.name}</span><span style={{fontSize:12,color:MUTE}}>€{f.price}/m</span></div>
+              {selected.map(id=>{ const f=(cards.find(c=>c.id===id))||byId(id); return (
+                <div key={id} className="flex items-center" style={{gap:10,padding:"6px 0"}}><img src={f.url||f.img} alt="" onError={e=>{e.currentTarget.style.visibility="hidden";}} style={{width:34,height:34,borderRadius:7,objectFit:"cover",background:fabricBg(f)}}/><span style={{fontSize:13,fontWeight:500,flex:1,color:DARK}}>{f.name}</span><span style={{fontSize:12,color:MUTE}}>€{f.price}/m</span></div>
               );})}
             </div>
             <input placeholder="Name" style={inp}/>

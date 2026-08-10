@@ -80,7 +80,8 @@ app.post('/api/render', async (req, res) => {
     const item = product === 'curtain' ? 'pair of curtains' : 'Roman blind';
     const prompt =
       `Edit the FIRST image, which is a real customer's room photo. Keep that room exactly as it is: the same walls, window frame, sill, furniture, plants, camera angle and lighting must stay identical. ` +
-      `Only add a made-to-measure ${item} fitted to the window. ` +
+      `If the window already has any existing blind, curtains, roller blind or covering, first remove it completely, then fit a new made-to-measure ${item} in its place. If the window is bare, simply add the ${item}. ` +
+      `The new ${item} should sit naturally within the window recess and be the only window covering in the final image. ` +
       `The SECOND image is a fabric sample, provided ONLY as a reference for the material's colour, weave and pattern. Do NOT copy the room, window, scene, props or lighting from the second image; take nothing from it except the fabric itself` +
       (fabricName ? ` (${fabricName})` : '') + `. ` +
       `The ${item} has full blackout lining, so the fabric is completely opaque: no sunlight, glow or window view shows through it, and it reads as solid colour with soft natural folds. ` +

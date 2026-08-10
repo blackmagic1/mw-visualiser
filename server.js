@@ -8,7 +8,8 @@ const app = express();
 app.use(express.json({ limit: '20mb' }));
 app.use(express.static(path.join(__dirname, 'dist')));
 
-const TEXT_MODEL = process.env.TEXT_MODEL || 'gemini-2.5-flash';
+const TEXT_CANDIDATES = [process.env.TEXT_MODEL, 'gemini-flash-latest', 'gemini-3.5-flash', 'gemini-3-flash', 'gemini-3.1-flash-lite', 'gemini-2.0-flash'].filter(Boolean);
+let RESOLVED_TEXT_MODEL = null;
 const IMAGE_MODEL = process.env.IMAGE_MODEL || 'gemini-3-pro-image';
 const FEED_URL = process.env.FEED_URL || 'https://materialworldireland.com/feeds/facebook_export.xml';
 const MEDIA = 'https://materialworldireland.com/media/catalog/product';
@@ -16,6 +17,15 @@ const MEDIA = 'https://materialworldireland.com/media/catalog/product';
 function ai() { return new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY }); }
 function parseDataUrl(d) { const m = /^data:(.+?);base64,(.*)$/s.exec(d || ''); return m ? { mimeType: m[1], data: m[2] } : null; }
 function textOf(r){ return (r.candidates?.[0]?.content?.parts||[]).map(p=>p.text).filter(Boolean).join('') || r.text || ''; }
+async function textGen(contents){
+  const list = [...new Set([RESOLVED_TEXT_MODEL, ...TEXT_CANDIDATES].filter(Boolean))];
+  let last;
+  for(const m of list){
+    try { const r = await ai().models.generateContent({ model: m, contents }); RESOLVED_TEXT_MODEL = m; return r; }
+    catch(e){ last = e; }
+  }
+  throw last || new Error('no text model available');
+}
 
 // small embedded catalogue used only if the live feed cannot be read
 const EMBEDDED = [
@@ -92,10 +102,7 @@ app.post('/api/analyse', async (req, res) => {
       '"picks":[{"tone":"warm|cool|green|neutral","motif":"plain|herringbone|stripe|damask|floral|trellis","reason":"one short sentence that refers to the wall colour or the light"}]}. ' +
       'Read the wall colour and the light carefully and let them drive the choices: in a dim or north-facing room prefer lighter or warmer fabrics; in a bright room richer or cooler tones also work; either match the walls tonally or gently complement them. ' +
       'Give EXACTLY 4 picks and make them varied; do not repeat the same tone four times.';
-    const response = await ai().models.generateContent({
-      model: TEXT_MODEL,
-      contents: [{ text: prompt }, { inlineData: { mimeType: r.mimeType, data: r.data } }],
-    });
+    const response = await textGen([{ text: prompt }, { inlineData: { mimeType: r.mimeType, data: r.data } }]);
     let txt = textOf(response).replace(/```json|```/g,'').trim(); let parsed;
     try { parsed = JSON.parse(txt); } catch { const m = txt.match(/\{[\s\S]*\}/); parsed = m ? JSON.parse(m[0]) : null; }
     if (!parsed) return res.status(502).json({ error: 'Could not parse analysis.' });
@@ -147,10 +154,10 @@ app.post('/api/render', async (req, res) => {
 
 // quick diagnostic: visit /api/diag in the browser to see why analysis may be failing
 app.get('/api/diag', async (req, res) => {
-  const out = { hasKey: !!process.env.GEMINI_API_KEY, textModel: TEXT_MODEL, imageModel: IMAGE_MODEL };
+  const out = { hasKey: !!process.env.GEMINI_API_KEY, textCandidates: TEXT_CANDIDATES, imageModel: IMAGE_MODEL };
   try {
-    const r = await ai().models.generateContent({ model: TEXT_MODEL, contents: [{ text: 'Reply with the single word OK.' }] });
-    out.textModelWorks = true; out.textSample = textOf(r).slice(0, 60);
+    const r = await textGen([{ text: 'Reply with the single word OK.' }]);
+    out.textModelWorks = true; out.resolvedTextModel = RESOLVED_TEXT_MODEL; out.textSample = textOf(r).slice(0, 60);
   } catch (e) { out.textModelWorks = false; out.textModelError = e.message; }
   try {
     const cat = await loadCatalogue();

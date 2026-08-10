@@ -145,6 +145,20 @@ app.post('/api/render', async (req, res) => {
   } catch (e) { console.error('render failed:', e.message); res.status(500).json({ error: e.message || 'render failed' }); }
 });
 
+// quick diagnostic: visit /api/diag in the browser to see why analysis may be failing
+app.get('/api/diag', async (req, res) => {
+  const out = { hasKey: !!process.env.GEMINI_API_KEY, textModel: TEXT_MODEL, imageModel: IMAGE_MODEL };
+  try {
+    const r = await ai().models.generateContent({ model: TEXT_MODEL, contents: [{ text: 'Reply with the single word OK.' }] });
+    out.textModelWorks = true; out.textSample = textOf(r).slice(0, 60);
+  } catch (e) { out.textModelWorks = false; out.textModelError = e.message; }
+  try {
+    const cat = await loadCatalogue();
+    out.catalogueCount = cat.length; out.usingEmbeddedFallback = (cat === EMBEDDED);
+  } catch (e) { out.catalogueError = e.message; }
+  res.json(out);
+});
+
 app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'dist', 'index.html')));
 const PORT = process.env.PORT || 4173;
 app.listen(PORT, () => console.log('listening on ' + PORT));

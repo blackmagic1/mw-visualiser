@@ -150,7 +150,7 @@ app.post('/api/render', async (req, res) => {
     let f = fabricUrl ? await getFabricImage(fabricUrl) : parseDataUrl(fabric);
     const item = product === 'curtain' ? 'pair of curtains' : 'Roman blind';
     const raise = product === 'blind'
-      ? 'Show the Roman blind partially raised: gathered into soft horizontal folds across the upper third to half of the window, with the lower part of the window and its light visible below the blind. Do not show it fully lowered covering the whole window. '
+      ? 'Show the Roman blind partially raised: gathered into crisp, evenly spaced horizontal folds that stack neatly at the top of the window, with the lower part of the window and its light visible below. The blind must look tailored and structured, hanging flat and square to the window, not loose, bunched, draped or puddling. Do not show it fully lowered covering the whole window. '
       : '';
     const prompt =
       `Edit the FIRST image, which is a real customer's room photo. Keep that room exactly as it is: the same walls, window frame, sill, furniture, plants, camera angle and lighting must stay identical. Keep the exact same aspect ratio, framing and full extent of the first image: the output must show exactly the same area as the input photo, including the walls, floor, furniture and every object at the edges, and must NOT zoom in on the window, crop, or recompose the shot. ` +

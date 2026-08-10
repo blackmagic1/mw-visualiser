@@ -308,10 +308,8 @@ export default function MWVisualiser(){
               {cards.map(card=>{ const f=card; const sel=selected.includes(card.id); const rendered=!!card.image;
                 return (
                   <div key={card.id} style={{background:CARD,border:`2px solid ${sel?DARK:LINE}`,borderRadius:14,overflow:"hidden",display:"flex",flexDirection:"column"}}>
-                    <div onClick={()=> rendered && setZoom(card)} style={{position:"relative",background: rendered ? "#e9e6ea" : fabricBg(f), cursor: rendered ? "zoom-in" : "default"}}>
-                      {rendered
-                        ? <img src={card.image} alt={f.name} style={{width:"100%",height:"auto",display:"block"}}/>
-                        : <div style={{aspectRatio: mode==="photo" ? roomAspect : "1"}}><img src={f.url} alt={f.name} onError={e=>{e.currentTarget.style.display="none";}} style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}}/></div>}
+                    <div onClick={()=> rendered && setZoom(card)} style={{position:"relative",aspectRatio: mode==="photo" ? roomAspect : "1", background:fabricBg(f), cursor: rendered ? "zoom-in" : "default"}}>
+                      <img src={card.image || f.url} alt={f.name} onError={e=>{e.currentTarget.style.display="none";}} style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}}/>
                       {card.status==="loading" && <div style={{position:"absolute",inset:0,background:"rgba(62,60,79,.45)",display:"flex",alignItems:"center",justifyContent:"center",color:WHITE}}><Loader2 size={22} className="animate-spin"/></div>}
                       {card.status==="error" && <div style={{position:"absolute",bottom:6,left:6,fontSize:10,color:WHITE,background:"rgba(62,60,79,.7)",padding:"2px 6px",borderRadius:8}}>fabric shown flat</div>}
                       {rendered && <div style={{position:"absolute",top:8,right:8,background:"rgba(35,32,27,.6)",color:WHITE,borderRadius:8,padding:"5px",display:"flex"}}><Maximize2 size={15}/></div>}

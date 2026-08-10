@@ -99,7 +99,7 @@ app.post('/api/analyse', async (req, res) => {
       'You are a soft-furnishings stylist looking at a photo of a room to recommend Roman blind fabrics. ' +
       'Reply with ONLY raw JSON, no markdown, in this shape: ' +
       '{"style":"short phrase describing the room","wall":"the wall colour in plain words","light":"the light in the room","palette":["#hex","#hex","#hex"],' +
-      '"picks":[{"tone":"warm|cool|green|neutral","motif":"plain|herringbone|stripe|damask|floral|trellis","reason":"one short sentence that refers to the wall colour or the light"}]}. ' +
+      '"summary":"one or two warm sentences explaining why these fabrics suit this room, referring to the wall colour and the light","picks":[{"tone":"warm|cool|green|neutral","motif":"plain|herringbone|stripe|damask|floral|trellis","reason":"one short sentence that refers to the wall colour or the light"}]}. ' +
       'Read the wall colour and the light carefully and let them drive the choices: in a dim or north-facing room prefer lighter or warmer fabrics; in a bright room richer or cooler tones also work; either match the walls tonally or gently complement them. ' +
       'Give EXACTLY 4 picks and make them varied; do not repeat the same tone four times.';
     const response = await textGen([{ text: prompt }, { inlineData: { mimeType: r.mimeType, data: r.data } }]);
@@ -108,10 +108,19 @@ app.post('/api/analyse', async (req, res) => {
     if (!parsed) return res.status(502).json({ error: 'Could not parse analysis.' });
     const cat = await loadCatalogue();
     const picks = matchPicks(parsed.picks, cat);
-    res.json({ style: parsed.style || '', wall: parsed.wall || '', light: parsed.light || '', palette: parsed.palette || [], picks });
+    res.json({ style: parsed.style || '', wall: parsed.wall || '', light: parsed.light || '', summary: parsed.summary || '', palette: parsed.palette || [], picks });
   } catch (e) { console.error('analyse failed:', e.message); res.status(500).json({ error: e.message || 'analyse failed' }); }
 });
 
+const RATIOS=[['1:1',1],['4:5',0.8],['5:4',1.25],['3:4',0.75],['4:3',4/3],['2:3',2/3],['3:2',1.5],['9:16',0.5625],['16:9',16/9]];
+function nearestAspect(w,h){ const r=w/h; let best='1:1',bd=1e9; for(const x of RATIOS){ const d=Math.abs(x[1]-r); if(d<bd){bd=d;best=x[0];} } return best; }
+function readImageSize(buf){
+  try{
+    if(buf.length>24 && buf[0]===0x89 && buf[1]===0x50) return { w:buf.readUInt32BE(16), h:buf.readUInt32BE(20) };
+    if(buf[0]===0xFF && buf[1]===0xD8){ let o=2; while(o<buf.length-8){ if(buf[o]!==0xFF){o++;continue;} const m=buf[o+1]; if(m>=0xC0&&m<=0xCF&&m!==0xC4&&m!==0xC8&&m!==0xCC){ return { h:buf.readUInt16BE(o+5), w:buf.readUInt16BE(o+7) }; } o+=2+buf.readUInt16BE(o+2); } }
+  }catch(e){}
+  return null;
+}
 const fabricCache = new Map();
 async function getFabricImage(url){
   if(fabricCache.has(url)) return fabricCache.get(url);
@@ -120,9 +129,15 @@ async function getFabricImage(url){
   const rec = { mimeType: resp.headers.get('content-type')||'image/jpeg', data: buf.toString('base64') };
   fabricCache.set(url, rec); return rec;
 }
-async function generateImage(parts, tries=3){
+async function generateImage(parts, aspectRatio, tries=3){
+  const cfgs = aspectRatio ? [{ config:{ imageConfig:{ aspectRatio } } }, {}] : [{}];
   let last;
-  for(let i=0;i<tries;i++){ try{ const r=await ai().models.generateContent({model:IMAGE_MODEL,contents:parts}); const out=(r.candidates?.[0]?.content?.parts||[]).find(p=>p.inlineData); if(out) return out; last=new Error('no image returned'); } catch(e){ last=e; } }
+  for(const cfg of cfgs){
+    for(let i=0;i<tries;i++){
+      try{ const r=await ai().models.generateContent({ model:IMAGE_MODEL, contents:parts, ...cfg }); const out=(r.candidates?.[0]?.content?.parts||[]).find(p=>p.inlineData); if(out) return out; last=new Error('no image returned'); }
+      catch(e){ last=e; if(cfg.config) break; }
+    }
+  }
   throw last||new Error('render failed');
 }
 app.post('/api/render', async (req, res) => {
@@ -130,13 +145,15 @@ app.post('/api/render', async (req, res) => {
     if (!process.env.GEMINI_API_KEY) return res.status(500).json({ error: 'Set GEMINI_API_KEY in Railway > Variables.' });
     const { room, fabric, fabricUrl, product = 'blind', fabricName = '' } = req.body || {};
     const r = parseDataUrl(room); if (!r) return res.status(400).json({ error: 'Missing room image.' });
+    const sz = readImageSize(Buffer.from(r.data,'base64'));
+    const aspect = sz ? nearestAspect(sz.w, sz.h) : null;
     let f = fabricUrl ? await getFabricImage(fabricUrl) : parseDataUrl(fabric);
     const item = product === 'curtain' ? 'pair of curtains' : 'Roman blind';
     const raise = product === 'blind'
       ? 'Show the Roman blind partially raised: gathered into soft horizontal folds across the upper third to half of the window, with the lower part of the window and its light visible below the blind. Do not show it fully lowered covering the whole window. '
       : '';
     const prompt =
-      `Edit the FIRST image, which is a real customer's room photo. Keep that room exactly as it is: the same walls, window frame, sill, furniture, plants, camera angle and lighting must stay identical. ` +
+      `Edit the FIRST image, which is a real customer's room photo. Keep that room exactly as it is: the same walls, window frame, sill, furniture, plants, camera angle and lighting must stay identical. Keep the exact same aspect ratio, framing and full extent of the first image: show the entire room as photographed and do not crop, zoom or recompose it. ` +
       `If the window already has any existing blind, curtains, roller blind or covering, first remove it completely, then fit a new made-to-measure ${item} in its place. If the window is bare, simply add the ${item}. ` +
       raise +
       `The ${item} should sit naturally within the window recess and be the only window covering in the final image. ` +
@@ -147,7 +164,7 @@ app.post('/api/render', async (req, res) => {
       `Photorealistic, with natural folds and soft shadows. Return only the edited photograph of the customer's room.`;
     const parts = [{ text: prompt }, { inlineData: { mimeType: r.mimeType, data: r.data } }];
     if (f) parts.push({ inlineData: { mimeType: f.mimeType, data: f.data } });
-    const out = await generateImage(parts, 3);
+    const out = await generateImage(parts, aspect, 3);
     res.json({ image: `data:${out.inlineData.mimeType || 'image/png'};base64,${out.inlineData.data}` });
   } catch (e) { console.error('render failed:', e.message); res.status(500).json({ error: e.message || 'render failed' }); }
 });

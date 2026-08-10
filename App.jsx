@@ -115,8 +115,9 @@ export default function MWVisualiser(){
   const [cards,setCards]=useState([]);
   const [selected,setSelected]=useState([]);
   const fileRef=useRef(null);
+  const [roomAspect,setRoomAspect]=useState("1000 / 666");
 
-  function onFile(e){ const file=e.target.files?.[0]; if(!file) return; const r=new FileReader(); r.onload=()=>{ const url=String(r.result); setRoom(url); startPhoto(url); }; r.readAsDataURL(file); e.target.value=""; }
+  function onFile(e){ const file=e.target.files?.[0]; if(!file) return; const r=new FileReader(); r.onload=()=>{ const url=String(r.result); setRoom(url); const im=new Image(); im.onload=()=>setRoomAspect(`${im.naturalWidth} / ${im.naturalHeight}`); im.src=url; startPhoto(url); }; r.readAsDataURL(file); e.target.value=""; }
 
   function fireRenders(roomImg, ps){
     const init = ps.map(p => ({ ...p, status:"loading", image:null }));
@@ -136,7 +137,7 @@ export default function MWVisualiser(){
     try{
       const res=await fetch("/api/analyse",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({ room: img })});
       const data=await res.json(); if(!res.ok) throw new Error(data.error||"x");
-      ana={style:data.style||FALLBACK.style,palette:data.palette||[],sub:[data.wall,data.light].filter(Boolean).join(" · ")};
+      ana={style:data.style||FALLBACK.style,palette:data.palette||[],sub:[data.wall,data.light].filter(Boolean).join(" · "),summary:data.summary||""};
       ps=(data.picks||[]).slice(0,4);
       if(!ps.length) throw new Error("x");
     }catch(e){
@@ -222,7 +223,7 @@ export default function MWVisualiser(){
                   <div style={{flex:1}}/>
                   <button onClick={()=>fileRef.current?.click()} style={{marginTop:20,width:"100%",display:"inline-flex",alignItems:"center",justifyContent:"center",gap:9,background:DARK,color:WHITE,fontWeight:600,fontSize:15,border:"none",borderRadius:40,padding:"13px 22px",cursor:"pointer",...H}}><Camera size={18}/> Upload my window</button>
                   <input ref={fileRef} type="file" accept="image/*" onChange={onFile} style={{display:"none"}}/>
-                  <button onClick={()=>startPhoto(ROOM)} style={{marginTop:10,background:"transparent",border:"none",color:MUTE,fontSize:12.5,cursor:"pointer",...H}}>or preview with a sample room</button>
+                  <button onClick={()=>{setRoomAspect("1000 / 666");startPhoto(ROOM);}} style={{marginTop:10,background:"transparent",border:"none",color:MUTE,fontSize:12.5,cursor:"pointer",...H}}>or preview with a sample room</button>
                 </div>
               </div>
 
@@ -297,6 +298,7 @@ export default function MWVisualiser(){
                 <div style={{fontSize:11,letterSpacing:2,color:MUTE,textTransform:"uppercase",fontWeight:600}}>{mode==="quiz"?"Your matches":"Your room"}</div>
                 <div style={{...H,fontSize:24,fontWeight:400,color:DARK}}>{analysis.style}</div>
                 {analysis.sub && <div style={{fontSize:13,color:DARK2,marginTop:2}}>{analysis.sub}</div>}
+                {analysis.summary && <div style={{fontSize:13.5,color:DARK2,lineHeight:1.5,marginTop:8,maxWidth:640}}>{analysis.summary}</div>}
               </div>
               {analysis.palette?.length>0 && <div className="flex" style={{gap:6}}>{analysis.palette.map((c,i)=><div key={i} title={c} style={{width:26,height:26,borderRadius:6,background:c,border:`1px solid ${LINE}`}}/>)}</div>}
             </div>
@@ -305,7 +307,7 @@ export default function MWVisualiser(){
               {cards.map(card=>{ const f=card; const sel=selected.includes(card.id);
                 return (
                   <button key={card.id} onClick={()=>toggle(card.id)} style={{textAlign:"left",background:CARD,border:`2px solid ${sel?DARK:LINE}`,borderRadius:14,overflow:"hidden",cursor:"pointer",padding:0}}>
-                    <div style={{position:"relative",aspectRatio:"1",background:fabricBg(f)}}>
+                    <div style={{position:"relative",aspectRatio: mode==="photo" ? roomAspect : "1", background:fabricBg(f)}}>
                       <img src={card.image || f.url} alt={f.name} onError={e=>{e.currentTarget.style.display="none";}} style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}}/>
                       {card.status==="loading" && <div style={{position:"absolute",inset:0,background:"rgba(62,60,79,.45)",display:"flex",alignItems:"center",justifyContent:"center",color:WHITE}}><Loader2 size={22} className="animate-spin"/></div>}
                       {card.status==="error" && <div style={{position:"absolute",bottom:6,left:6,fontSize:10,color:WHITE,background:"rgba(62,60,79,.7)",padding:"2px 6px",borderRadius:8}}>fabric shown flat</div>}

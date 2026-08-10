@@ -1,7 +1,7 @@
 import { useState, useRef } from "react";
 import { Sofa, Bed, CookingPot, Bath, Utensils, Moon, Sun, Lock, Sparkles,
          Camera, Wand2, Check, Package, RotateCcw, ChevronLeft, Loader2, Upload,
-         Search, ShoppingCart, Truck, Scissors, Hand } from "lucide-react";
+         Search, ShoppingCart, Truck, Scissors, Hand, Maximize2, X } from "lucide-react";
 
 const DARK="#3E3C4F", DARK2="#565469", WHITE="#FFFFFF", CARD="#F7F4F8", LINE="#E7E4EC";
 const BLUSH="#E7CCCB", BLUE="#B5D7E6", MUTE="#8E8AA3", SUCCESS="#7FB4C8";
@@ -116,6 +116,7 @@ export default function MWVisualiser(){
   const [selected,setSelected]=useState([]);
   const fileRef=useRef(null);
   const [roomAspect,setRoomAspect]=useState("1000 / 666");
+  const [zoom,setZoom]=useState(null);
 
   function onFile(e){ const file=e.target.files?.[0]; if(!file) return; const r=new FileReader(); r.onload=()=>{ const url=String(r.result); setRoom(url); const im=new Image(); im.onload=()=>setRoomAspect(`${im.naturalWidth} / ${im.naturalHeight}`); im.src=url; startPhoto(url); }; r.readAsDataURL(file); e.target.value=""; }
 
@@ -304,20 +305,24 @@ export default function MWVisualiser(){
             </div>
 
             <div className="grid grid-cols-2" style={{gap:16}}>
-              {cards.map(card=>{ const f=card; const sel=selected.includes(card.id);
+              {cards.map(card=>{ const f=card; const sel=selected.includes(card.id); const rendered=!!card.image;
                 return (
-                  <button key={card.id} onClick={()=>toggle(card.id)} style={{textAlign:"left",background:CARD,border:`2px solid ${sel?DARK:LINE}`,borderRadius:14,overflow:"hidden",cursor:"pointer",padding:0}}>
-                    <div style={{position:"relative",aspectRatio: mode==="photo" ? roomAspect : "1", background:fabricBg(f)}}>
-                      <img src={card.image || f.url} alt={f.name} onError={e=>{e.currentTarget.style.display="none";}} style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}}/>
+                  <div key={card.id} style={{background:CARD,border:`2px solid ${sel?DARK:LINE}`,borderRadius:14,overflow:"hidden",display:"flex",flexDirection:"column"}}>
+                    <div onClick={()=> rendered && setZoom(card)} style={{position:"relative",background: rendered ? "#e9e6ea" : fabricBg(f), cursor: rendered ? "zoom-in" : "default"}}>
+                      {rendered
+                        ? <img src={card.image} alt={f.name} style={{width:"100%",height:"auto",display:"block"}}/>
+                        : <div style={{aspectRatio: mode==="photo" ? roomAspect : "1"}}><img src={f.url} alt={f.name} onError={e=>{e.currentTarget.style.display="none";}} style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}}/></div>}
                       {card.status==="loading" && <div style={{position:"absolute",inset:0,background:"rgba(62,60,79,.45)",display:"flex",alignItems:"center",justifyContent:"center",color:WHITE}}><Loader2 size={22} className="animate-spin"/></div>}
                       {card.status==="error" && <div style={{position:"absolute",bottom:6,left:6,fontSize:10,color:WHITE,background:"rgba(62,60,79,.7)",padding:"2px 6px",borderRadius:8}}>fabric shown flat</div>}
-                      {sel && <div style={{position:"absolute",top:8,right:8,width:26,height:26,borderRadius:"50%",background:BLUE,color:DARK,display:"flex",alignItems:"center",justifyContent:"center"}}><Check size={16}/></div>}
+                      {rendered && <div style={{position:"absolute",top:8,right:8,background:"rgba(35,32,27,.6)",color:WHITE,borderRadius:8,padding:"5px",display:"flex"}}><Maximize2 size={15}/></div>}
+                      {sel && <div style={{position:"absolute",top:8,left:8,width:26,height:26,borderRadius:"50%",background:BLUE,color:DARK,display:"flex",alignItems:"center",justifyContent:"center"}}><Check size={16}/></div>}
                     </div>
-                    <div style={{padding:"11px 13px"}}>
+                    <div onClick={()=>toggle(card.id)} style={{padding:"11px 13px",cursor:"pointer",flex:1,display:"flex",flexDirection:"column"}}>
                       <div className="flex items-center justify-between"><span style={{fontSize:13,fontWeight:600,color:DARK}}>{f.name}</span><span style={{fontSize:12,color:DARK2}}>€{f.price}/m</span></div>
                       <div style={{fontSize:11.5,color:MUTE,lineHeight:1.35,marginTop:3}}>{card.reason}</div>
+                      <div style={{marginTop:8,fontSize:12,fontWeight:600,color:sel?DARK:MUTE,display:"inline-flex",alignItems:"center",gap:5}}>{sel ? <><Check size={14}/> Selected</> : "Tap to select"}</div>
                     </div>
-                  </button>
+                  </div>
                 );
               })}
             </div>
@@ -364,6 +369,21 @@ export default function MWVisualiser(){
           </div>
         )}
       </div>
+
+      {zoom && (
+        <div onClick={()=>setZoom(null)} style={{position:"fixed",inset:0,background:"rgba(20,18,25,.85)",zIndex:100,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+          <div onClick={e=>e.stopPropagation()} style={{maxWidth:"min(1000px,95vw)",maxHeight:"92vh",background:WHITE,borderRadius:14,overflow:"hidden",display:"flex",flexDirection:"column"}}>
+            <div style={{position:"relative",background:"#000"}}>
+              <img src={zoom.image} alt={zoom.name} style={{width:"100%",maxHeight:"74vh",objectFit:"contain",display:"block"}}/>
+              <button onClick={()=>setZoom(null)} style={{position:"absolute",top:10,right:10,background:"rgba(0,0,0,.55)",color:WHITE,border:"none",borderRadius:"50%",width:34,height:34,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}><X size={18}/></button>
+            </div>
+            <div className="flex items-center justify-between" style={{padding:"14px 18px",gap:12}}>
+              <div><div style={{...H,fontSize:16,fontWeight:600,color:DARK}}>{zoom.name} · €{zoom.price}/m</div><div style={{fontSize:12.5,color:MUTE,marginTop:2}}>{zoom.reason}</div></div>
+              <button onClick={()=>toggle(zoom.id)} style={{whiteSpace:"nowrap",background:selected.includes(zoom.id)?DARK:WHITE,color:selected.includes(zoom.id)?WHITE:DARK,fontWeight:600,fontSize:13,border:`1.5px solid ${DARK}`,borderRadius:40,padding:"10px 18px",cursor:"pointer",...H}}>{selected.includes(zoom.id)?"Selected":"Select"}</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div style={{background:DARK,color:WHITE,fontSize:11.5,textAlign:"center",padding:"16px"}}>Material World, Naas, Co. Kildare · +353 (0)45 879 663</div>
     </div>

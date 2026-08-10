@@ -153,7 +153,7 @@ app.post('/api/render', async (req, res) => {
       ? 'Show the Roman blind partially raised: gathered into soft horizontal folds across the upper third to half of the window, with the lower part of the window and its light visible below the blind. Do not show it fully lowered covering the whole window. '
       : '';
     const prompt =
-      `Edit the FIRST image, which is a real customer's room photo. Keep that room exactly as it is: the same walls, window frame, sill, furniture, plants, camera angle and lighting must stay identical. Keep the exact same aspect ratio, framing and full extent of the first image: show the entire room as photographed and do not crop, zoom or recompose it. ` +
+      `Edit the FIRST image, which is a real customer's room photo. Keep that room exactly as it is: the same walls, window frame, sill, furniture, plants, camera angle and lighting must stay identical. Keep the exact same aspect ratio, framing and full extent of the first image: the output must show exactly the same area as the input photo, including the walls, floor, furniture and every object at the edges, and must NOT zoom in on the window, crop, or recompose the shot. ` +
       `If the window already has any existing blind, curtains, roller blind or covering, first remove it completely, then fit a new made-to-measure ${item} in its place. If the window is bare, simply add the ${item}. ` +
       raise +
       `The ${item} should sit naturally within the window recess and be the only window covering in the final image. ` +

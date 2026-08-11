@@ -129,14 +129,11 @@ async function getFabricImage(url){
   const rec = { mimeType: resp.headers.get('content-type')||'image/jpeg', data: buf.toString('base64') };
   fabricCache.set(url, rec); return rec;
 }
-async function generateImage(parts, aspectRatio, tries=3){
-  const cfgs = aspectRatio ? [{ config:{ imageConfig:{ aspectRatio } } }, {}] : [{}];
+async function generateImage(parts, aspectRatio, tries=2){
   let last;
-  for(const cfg of cfgs){
-    for(let i=0;i<tries;i++){
-      try{ const r=await ai().models.generateContent({ model:IMAGE_MODEL, contents:parts, ...cfg }); const out=(r.candidates?.[0]?.content?.parts||[]).find(p=>p.inlineData); if(out) return out; last=new Error('no image returned'); }
-      catch(e){ last=e; if(cfg.config) break; }
-    }
+  for(let i=0;i<tries;i++){
+    try{ const r=await ai().models.generateContent({ model:IMAGE_MODEL, contents:parts }); const out=(r.candidates?.[0]?.content?.parts||[]).find(p=>p.inlineData); if(out) return out; last=new Error('no image returned'); }
+    catch(e){ last=e; }
   }
   throw last||new Error('render failed');
 }

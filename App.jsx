@@ -121,24 +121,25 @@ export default function MWVisualiser(){
 
   function onFile(e){ const file=e.target.files?.[0]; if(!file) return; const r=new FileReader(); r.onload=()=>{ const url=String(r.result); setRoom(url); const im=new Image(); im.onload=()=>setRoomAspect(`${im.naturalWidth} / ${im.naturalHeight}`); im.src=url; startPhoto(url); }; r.readAsDataURL(file); e.target.value=""; }
 
+  function doRender(roomImg, card){
+    const ctrl = new AbortController();
+    const t = setTimeout(()=>ctrl.abort(), 75000);
+    fetch("/api/render",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({ room:roomImg, fabricUrl:card.url, fabricName:card.name, product:"blind" }),signal:ctrl.signal})
+      .then(async r=>{ const d=await r.json(); if(!r.ok) throw new Error(d.error||"render failed"); return d; })
+      .then(d=> setCards(cs=>cs.map(c=>c.id===card.id?{...c,status:"done",image:d.image}:c)))
+      .catch(()=> setCards(cs=>cs.map(c=>c.id===card.id?{...c,status:"error"}:c)))
+      .finally(()=> clearTimeout(t));
+  }
   function fireRenders(roomImg, ps){
     setRenderRoom(roomImg);
     const init = ps.map(p => ({ ...p, status:"loading", image:null }));
     setCards(init);
-    init.forEach(card => {
-      fetch("/api/render",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({ room:roomImg, fabricUrl:card.url, fabricName:card.name, product:"blind" })})
-        .then(async r=>{ const d=await r.json(); if(!r.ok) throw new Error(d.error||"render failed"); return d; })
-        .then(d=> setCards(cs=>cs.map(c=>c.id===card.id?{...c,status:"done",image:d.image}:c)))
-        .catch(()=> setCards(cs=>cs.map(c=>c.id===card.id?{...c,status:"error"}:c)));
-    });
+    init.forEach(card => doRender(roomImg, card));
   }
 
   function reRender(card){
     setCards(cs=>cs.map(c=>c.id===card.id?{...c,status:"loading",image:null}:c));
-    fetch("/api/render",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({ room:renderRoom, fabricUrl:card.url, fabricName:card.name, product:"blind" })})
-      .then(async r=>{ const d=await r.json(); if(!r.ok) throw new Error(d.error||"render failed"); return d; })
-      .then(d=> setCards(cs=>cs.map(c=>c.id===card.id?{...c,status:"done",image:d.image}:c)))
-      .catch(()=> setCards(cs=>cs.map(c=>c.id===card.id?{...c,status:"error"}:c)));
+    doRender(renderRoom, card);
   }
 
   async function startPhoto(roomImg){

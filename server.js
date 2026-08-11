@@ -175,6 +175,11 @@ app.get('/api/diag', async (req, res) => {
     out.textModelWorks = true; out.resolvedTextModel = RESOLVED_TEXT_MODEL; out.textSample = textOf(r).slice(0, 60);
   } catch (e) { out.textModelWorks = false; out.textModelError = e.message; }
   try {
+    const r = await ai().models.generateContent({ model: IMAGE_MODEL, contents: [{ text: 'Generate a simple image: a small solid blue square on a white background.' }] });
+    const has = (r.candidates?.[0]?.content?.parts||[]).some(p=>p.inlineData);
+    out.imageModelWorks = has; if(!has) out.imageModelNote = 'call returned but contained no image';
+  } catch (e) { out.imageModelWorks = false; out.imageModelError = e.message; }
+  try {
     const cat = await loadCatalogue();
     out.catalogueCount = cat.length; out.usingEmbeddedFallback = (cat === EMBEDDED);
   } catch (e) { out.catalogueError = e.message; }

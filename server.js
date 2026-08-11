@@ -10,7 +10,8 @@ app.use(express.static(path.join(__dirname, 'dist')));
 
 const TEXT_CANDIDATES = [process.env.TEXT_MODEL, 'gemini-flash-latest', 'gemini-3.5-flash', 'gemini-3-flash', 'gemini-3.1-flash-lite', 'gemini-2.0-flash'].filter(Boolean);
 let RESOLVED_TEXT_MODEL = null;
-const IMAGE_MODEL = process.env.IMAGE_MODEL || 'gemini-3-pro-image';
+const IMAGE_CANDIDATES = [process.env.IMAGE_MODEL, 'gemini-3-pro-image', 'gemini-3.1-flash-image', 'gemini-2.5-flash-image'].filter(Boolean);
+let RESOLVED_IMAGE_MODEL = null;
 const FEED_URL = process.env.FEED_URL || 'https://materialworldireland.com/feeds/facebook_export.xml';
 const MEDIA = 'https://materialworldireland.com/media/catalog/product';
 
@@ -129,10 +130,10 @@ async function getFabricImage(url){
   const rec = { mimeType: resp.headers.get('content-type')||'image/jpeg', data: buf.toString('base64') };
   fabricCache.set(url, rec); return rec;
 }
-async function generateImage(parts, aspectRatio, tries=2){
+async function generateImage(parts){
   let last;
-  for(let i=0;i<tries;i++){
-    try{ const r=await ai().models.generateContent({ model:IMAGE_MODEL, contents:parts }); const out=(r.candidates?.[0]?.content?.parts||[]).find(p=>p.inlineData); if(out) return out; last=new Error('no image returned'); }
+  for(const m of [...new Set(IMAGE_CANDIDATES)]){
+    try{ const r=await ai().models.generateContent({ model:m, contents:parts }); const out=(r.candidates?.[0]?.content?.parts||[]).find(p=>p.inlineData); if(out){ RESOLVED_IMAGE_MODEL=m; return out; } last=new Error('no image from '+m); }
     catch(e){ last=e; }
   }
   throw last||new Error('render failed');
@@ -162,22 +163,21 @@ app.post('/api/render', async (req, res) => {
       `Photorealistic, with natural folds and soft shadows. Return only the edited photograph of the customer's room.`;
     const parts = [{ text: prompt }, { inlineData: { mimeType: r.mimeType, data: r.data } }];
     if (f) parts.push({ inlineData: { mimeType: f.mimeType, data: f.data } });
-    const out = await generateImage(parts, aspect, 3);
+    const out = await generateImage(parts);
     res.json({ image: `data:${out.inlineData.mimeType || 'image/png'};base64,${out.inlineData.data}` });
   } catch (e) { console.error('render failed:', e.message); res.status(500).json({ error: e.message || 'render failed' }); }
 });
 
 // quick diagnostic: visit /api/diag in the browser to see why analysis may be failing
 app.get('/api/diag', async (req, res) => {
-  const out = { hasKey: !!process.env.GEMINI_API_KEY, textCandidates: TEXT_CANDIDATES, imageModel: IMAGE_MODEL };
+  const out = { hasKey: !!process.env.GEMINI_API_KEY, textCandidates: TEXT_CANDIDATES, imageCandidates: IMAGE_CANDIDATES };
   try {
     const r = await textGen([{ text: 'Reply with the single word OK.' }]);
     out.textModelWorks = true; out.resolvedTextModel = RESOLVED_TEXT_MODEL; out.textSample = textOf(r).slice(0, 60);
   } catch (e) { out.textModelWorks = false; out.textModelError = e.message; }
   try {
-    const r = await ai().models.generateContent({ model: IMAGE_MODEL, contents: [{ text: 'Generate a simple image: a small solid blue square on a white background.' }] });
-    const has = (r.candidates?.[0]?.content?.parts||[]).some(p=>p.inlineData);
-    out.imageModelWorks = has; if(!has) out.imageModelNote = 'call returned but contained no image';
+    await generateImage([{ text: 'Generate a simple image: a small solid blue square on a white background.' }]);
+    out.imageModelWorks = true; out.resolvedImageModel = RESOLVED_IMAGE_MODEL;
   } catch (e) { out.imageModelWorks = false; out.imageModelError = e.message; }
   try {
     const cat = await loadCatalogue();
